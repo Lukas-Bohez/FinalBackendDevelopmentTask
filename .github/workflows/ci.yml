@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release --verbosity minimal
+
+      - name: Run unit tests
+        run: dotnet test ./final.Tests --no-build --verbosity normal
+
+      - name: Run integration tests (Testcontainers)
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+        run: dotnet test ./final.IntegrationTests --no-build --verbosity normal
+
+      - name: Build website (Vite) - check only
+        working-directory: "website tests"
+        run: |
+          npm ci
+          npm run build

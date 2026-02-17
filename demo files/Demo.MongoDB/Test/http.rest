@@ -1,0 +1,18 @@
+GET http://localhost:5201/movies
+Content-Type: application/json
+Accept: application/json
+
+###
+POST http://localhost:5201/movies
+Content-Type: application/json
+Accept: application/json
+
+{
+  "title": "The Pianist 4",
+  "year": 1999,
+  "genre": "Sci-Fi",
+  "director": "The Wachowski Brothers"
+}
+ 
+###
+GET http://localhost:5201/locations

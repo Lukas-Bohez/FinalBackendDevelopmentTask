@@ -1,0 +1,60 @@
+### Register passenger
+POST http://localhost:5000/api/public/register
+Content-Type: application/json
+
+{
+  "email": "alice@example.com",
+  "password": "Password123!",
+  "fullName": "Alice Example",
+  "homeAddress": "Main Street 1"
+}
+
+### Login
+POST http://localhost:5000/api/public/login
+Content-Type: application/json
+
+{
+  "email": "alice@example.com",
+  "password": "Password123!"
+}
+
+### Price estimate
+POST http://localhost:5000/api/public/price
+Content-Type: application/json
+
+{
+  "distanceKm": 12.5,
+  "durationMinutes": 18,
+  "vehicleType": "Standard",
+  "startTime": "2025-02-16T14:00:00Z",
+  "loyaltyPoints": 230,
+  "discountCode": "SUMMER24"
+}
+
+### Create ride (use passengerId from register response)
+POST http://localhost:5000/api/public/rides
+Content-Type: application/json
+
+{
+  "passengerId": "00000000-0000-0000-0000-000000000000",
+  "pickupLat": 51.0,
+  "pickupLng": 3.0,
+  "dropoffLat": 51.01,
+  "dropoffLng": 3.01,
+  "pickupAddress": "Start",
+  "dropoffAddress": "End"
+}
+
+### Send telemetry (vehicle simulator)
+POST http://localhost:5000/api/telemetry
+Content-Type: application/json
+
+{
+  "vehicleId": "00000000-0000-0000-0000-000000000000",
+  "timestamp": "2025-02-16T14:00:00Z",
+  "latitude": 51.0,
+  "longitude": 3.0,
+  "speedKmh": 42.5,
+  "batteryPercent": 78,
+  "internalTempC": 40.2
+}

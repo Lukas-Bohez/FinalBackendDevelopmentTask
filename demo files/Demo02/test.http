@@ -1,0 +1,13 @@
+@url=http://localhost:5000
+
+##Add Person
+POST {{url}}/person
+Content-Type: application/json
+
+{
+    "name": "John Doe",
+    "age": 3,
+    "phone": "1234567890"
+}
+
+ 

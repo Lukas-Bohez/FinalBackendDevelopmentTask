@@ -1,0 +1,48 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: novadrive
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  mongo:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+
+  app:
+    build:
+      context: ./final
+    ports:
+      - "5000:80"
+    depends_on:
+      - postgres
+      - mongo
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Postgres=Host=postgres;Database=novadrive;Username=postgres;Password=postgres
+      - Mongo__ConnectionString=mongodb://mongo:27017
+      - Jwt__Key=ThisIsADevSecretKey_DoNotUseInProd_ChangeMe
+
+  website:
+    build:
+      context: ./website tests
+    ports:
+      - "5173:80"
+    depends_on:
+      - app
+    environment:
+      - VITE_API_BASE=/api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  mongodata:

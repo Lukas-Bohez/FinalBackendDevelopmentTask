@@ -1,0 +1,28 @@
+@url=http://localhost:5000
+
+##Add Person
+POST {{url}}/person
+Content-Type: application/json
+
+{
+    "name": "John Doe",
+    "age": 30,
+    "phone": "1234567890"
+}
+
+###Add Person method 2
+POST {{url}}/person2
+Content-Type: application/json
+
+{
+    "name": "John Doe",
+    "age": 3,
+    "phone": "1234567890"
+}
+
+###Get Person
+GET {{url}}/person/1
+
+###Get all Persons  
+GET {{url}}/persons
+

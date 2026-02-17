@@ -1,0 +1,16 @@
+@url=http://localhost:5176
+###
+GET {{url}}/books
+
+###
+POST {{url}}/books
+Content-Type: application/json
+
+{
+    "title": "Book 1",
+    "publisher" : "Publisher 1",
+    "isbn": "1234567890",
+    "authorId": 2
+}
+
+

@@ -1,0 +1,21 @@
+syntax = "proto3";
+package novadrive;
+
+service TelemetryService {
+  rpc Send (TelemetryEntry) returns (TelemetryAck);
+}
+
+message TelemetryEntry {
+  string vehicleId = 1;
+  int64 timestamp = 2; // unix ms
+  double latitude = 3;
+  double longitude = 4;
+  double speedKmh = 5;
+  int32 batteryPercent = 6;
+  double internalTempC = 7;
+}
+
+message TelemetryAck {
+  bool ok = 1;
+  string message = 2;
+}
