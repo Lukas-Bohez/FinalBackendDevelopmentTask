@@ -53,6 +53,7 @@ builder.Services.AddSingleton<IAuthService, AuthService>();
 builder.Services.AddSingleton<ITelemetryService, TelemetryService>();
 builder.Services.AddSingleton<ISensorDiagnosticsService, SensorDiagnosticsService>();
 builder.Services.AddSingleton<IPdfService, PdfService>();
+builder.Services.AddSingleton<IInvoiceEmailService, InvoiceEmailService>();
 
 // ── Validation ────────────────────────────────────────────
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterValidator>();
@@ -334,7 +335,7 @@ rides_api.MapGet("/{id:guid}", async (Guid id, IRideRepository rides) =>
 });
 
 rides_api.MapPost("/{id:guid}/complete", async (Guid id, IRideRepository rides,
-    IPaymentRepository payments, IUserRepository users, IPdfService pdf) =>
+    IPaymentRepository payments, IUserRepository users, IPdfService pdf, IInvoiceEmailService emailer) =>
 {
     var ride = await rides.GetByIdAsync(id);
     if (ride is null) return Results.NotFound();
@@ -368,6 +369,12 @@ rides_api.MapPost("/{id:guid}/complete", async (Guid id, IRideRepository rides,
         passenger?.Email ?? "unknown",
         ride.FareExcludingVat ?? 0, ride.VatAmount ?? 0,
         ride.TotalFare ?? 0, ride.Currency ?? "EUR");
+
+    if (passenger is not null)
+    {
+        await emailer.SendInvoiceAsync(passenger.Email, ride.Id.ToString(), pdfPath,
+            ride.TotalFare ?? 0, ride.Currency ?? "EUR");
+    }
 
     var bytes = await File.ReadAllBytesAsync(pdfPath);
     return Results.File(bytes, "application/pdf", Path.GetFileName(pdfPath));

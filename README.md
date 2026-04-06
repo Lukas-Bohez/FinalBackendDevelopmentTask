@@ -19,7 +19,7 @@ What I implemented (MVP + Docker + telemetry + PDF):
 - Pricing engine (full business rules: multipliers, night surcharge, loyalty discount cap, promo codes, VAT, min fare, rounding)
 - Telemetry stored in MongoDB (HTTP ingestion + gRPC scaffold available)
 - Sensor diagnostics stored in MongoDB (Lidar/Radar/Camera + severity/error code/raw JSON)
-- PDF invoice generation (QuestPDF) — saved to /invoices
+- PDF invoice generation (QuestPDF) — saved to /invoices and emailed when SMTP is configured
 - FluentValidation, Serilog, Swagger
 - PostgreSQL (relational) + MongoDB (telemetry) via Docker Compose
 - Observability: Prometheus metrics (`/metrics`) + health endpoint (`/health`)
@@ -30,7 +30,6 @@ What I implemented (MVP + Docker + telemetry + PDF):
 
 Next recommended steps:
 - Add migrations + production DB hardening
-- Add email sending for invoices (SMTP)
 - Add GraphQL/gRPC client examples and UI
 
 Files added/modified:
