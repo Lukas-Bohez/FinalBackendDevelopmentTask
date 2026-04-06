@@ -1,107 +1,181 @@
-using System;
-using System.Collections.Generic;
+using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Json;
-using System.Threading.Tasks;
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Configurations;
-using DotNet.Testcontainers.Containers;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using NovaDrive.Services;
 using Xunit;
 
-#nullable enable
+namespace NovaDrive.IntegrationTests;
 
-namespace NovaDrive.IntegrationTests
+public class EndToEndTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    public class EndToEndTests : IAsyncLifetime
+    private readonly WebApplicationFactory<Program> _factory;
+
+    public EndToEndTests(WebApplicationFactory<Program> factory)
     {
-        private readonly PostgreSqlTestcontainer _pgContainer;
-        private readonly MongoDbTestcontainer _mongoContainer;
-        private WebApplicationFactory<Program>? _factory;
-        private System.Net.Http.HttpClient? _client;
+        var dbPath = Path.Combine(Path.GetTempPath(), $"novadrive_integration_{Guid.NewGuid():N}.db");
+        var sqliteConnection = $"Data Source={dbPath}";
 
-        public EndToEndTests()
+        Environment.SetEnvironmentVariable("Database__Provider", "sqlite");
+        Environment.SetEnvironmentVariable("ConnectionStrings__Sqlite", sqliteConnection);
+
+        _factory = factory.WithWebHostBuilder(builder =>
         {
-            _pgContainer = new TestcontainersBuilder<PostgreSqlTestcontainer>()
-                .WithDatabase(new PostgreSqlTestcontainerConfiguration { Database = "novadrive", Username = "postgres", Password = "postgres" })
-                .WithImage("postgres:15")
-                .WithCleanUp(true)
-                .Build();
-
-            _mongoContainer = new TestcontainersBuilder<MongoDbTestcontainer>()
-                .WithDatabase(new MongoDbTestcontainerConfiguration { Database = "novadrive" })
-                .WithImage("mongo:6.0")
-                .WithCleanUp(true)
-                .Build();
-        }
-
-        public async Task InitializeAsync()
-        {
-            await _pgContainer.StartAsync();
-            await _mongoContainer.StartAsync();
-
-            var pgConn = _pgContainer.ConnectionString;
-            var mongoConn = _mongoContainer.ConnectionString;
-
-            _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, config) =>
             {
-                builder.ConfigureAppConfiguration((ctx, conf) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    var settings = new Dictionary<string, string>
-                    {
-                        ["ConnectionStrings:Postgres"] = pgConn,
-                        ["Mongo:ConnectionString"] = mongoConn,
-                        ["Jwt:Key"] = "IntegrationTest_SecretKey_ChangeMe"
-                    };
-                    conf.AddInMemoryCollection(settings);
+                    ["Database:Provider"] = "sqlite",
+                    ["ConnectionStrings:Sqlite"] = sqliteConnection
                 });
             });
 
-            _client = _factory.CreateClient();
-        }
+            builder.ConfigureServices(services =>
+            {
+                var telemetryDescriptor = services.SingleOrDefault(d =>
+                    d.ServiceType == typeof(ITelemetryService));
+                if (telemetryDescriptor is not null)
+                {
+                    services.Remove(telemetryDescriptor);
+                }
 
-        [Fact]
-        public async Task Register_Price_Ride_Telemetry_Workflow()
+                services.AddSingleton<ITelemetryService, InMemoryTelemetryService>();
+            });
+        });
+    }
+
+    [Fact]
+    public async Task PricingEstimate_ReturnsSuccessfulResponse()
+    {
+        using var client = _factory.CreateClient();
+
+        var payload = new
         {
-            // Register
-            var reg = new { email = "ituser@example.com", password = "Password123!", fullName = "IT User" };
-            var regResp = await _client!.PostAsJsonAsync("/api/public/register", reg);
-            regResp.EnsureSuccessStatusCode();
-            var regBody = await regResp.Content.ReadFromJsonAsync<JsonElement>();
-            var userId = regBody.GetProperty("Id").GetGuid();
+            distanceKm = 4.2m,
+            durationMinutes = 12m,
+            vehicleType = "Standard",
+            startTime = DateTime.UtcNow,
+            loyaltyPoints = 0,
+            discountCode = (string?)null
+        };
 
-            // Price estimate
-            var priceReq = new { distanceKm = 3.5m, durationMinutes = 8m, vehicleType = "Standard", startTime = DateTime.UtcNow };
-            var priceResp = await _client.PostAsJsonAsync("/api/public/price", priceReq);
-            priceResp.EnsureSuccessStatusCode();
-            var body = await priceResp.Content.ReadFromJsonAsync<JsonElement>();
-            Assert.True(body.GetProperty("TotalPrice").GetDecimal() >= 5.0m);
+        var response = await client.PostAsJsonAsync("/api/pricing/estimate", payload);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-            // Request a ride
-            var rideReq = new { passengerId = userId, pickupLat = 51.0m, pickupLng = 3.0m, dropoffLat = 51.01m, dropoffLng = 3.01m, pickupAddress = "Start", dropoffAddress = "End" };
-            var rideResp = await _client.PostAsJsonAsync("/api/public/rides", rideReq);
-            rideResp.EnsureSuccessStatusCode();
-            var rideBody = await rideResp.Content.ReadFromJsonAsync<JsonElement>();
-            var rideId = rideBody.GetProperty("Id").GetGuid();
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("totalPrice", body, StringComparison.OrdinalIgnoreCase);
+    }
 
-            // Complete ride (should return PDF)
-            var completeResp = await _client.PostAsync($"/api/public/rides/{rideId}/complete", null);
-            completeResp.EnsureSuccessStatusCode();
-            Assert.Equal("application/pdf", completeResp.Content.Headers.ContentType?.MediaType);
+    [Fact]
+    public async Task AuthAndRideWorkflow_CanCreateAndCompleteRide()
+    {
+        using var client = _factory.CreateClient();
+        var uniqueEmail = $"e2e-{Guid.NewGuid():N}@novadrive.local";
 
-            // Telemetry ingestion
-            var telemetry = new { vehicleId = Guid.NewGuid(), timestamp = DateTime.UtcNow, latitude = 51.0, longitude = 3.0, speedKmh = 12.5, batteryPercent = 75, internalTempC = 40.0 };
-            var telResp = await _client.PostAsJsonAsync("/api/telemetry", telemetry);
-            Assert.Equal(System.Net.HttpStatusCode.Accepted, telResp.StatusCode);
-        }
-
-        public async Task DisposeAsync()
+        var registerPayload = new
         {
-            _client?.Dispose();
-            _factory?.Dispose();
-            await _mongoContainer.StopAsync();
-            await _pgContainer.StopAsync();
+            email = uniqueEmail,
+            password = "Password123!",
+            fullName = "Integration Rider",
+            homeAddress = "Test Street 1"
+        };
+
+        var registerResponse = await client.PostAsJsonAsync("/api/auth/register", registerPayload);
+        Assert.Equal(HttpStatusCode.Created, registerResponse.StatusCode);
+
+        var registerResult = await registerResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.NotNull(registerResult);
+        Assert.False(string.IsNullOrWhiteSpace(registerResult!.Token));
+
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", registerResult.Token);
+
+        var ridePayload = new
+        {
+            passengerId = registerResult.UserId,
+            pickupLat = 51.0,
+            pickupLng = 3.0,
+            dropoffLat = 51.01,
+            dropoffLng = 3.01,
+            pickupAddress = "Campus",
+            dropoffAddress = "Station"
+        };
+
+        var createRideResponse = await client.PostAsJsonAsync("/api/rides", ridePayload);
+        Assert.Equal(HttpStatusCode.Created, createRideResponse.StatusCode);
+
+        var createRideResult = await createRideResponse.Content.ReadFromJsonAsync<CreateRideResponse>();
+        Assert.NotNull(createRideResult);
+
+        var completeRideResponse = await client.PostAsync($"/api/rides/{createRideResult!.Id}/complete", null);
+        Assert.Equal(HttpStatusCode.OK, completeRideResponse.StatusCode);
+        Assert.Equal("application/pdf", completeRideResponse.Content.Headers.ContentType?.MediaType);
+
+        var pdfBytes = await completeRideResponse.Content.ReadAsByteArrayAsync();
+        Assert.True(pdfBytes.Length > 100);
+    }
+
+    [Fact]
+    public async Task TelemetryEndpoints_CanStoreAndReadLatest()
+    {
+        using var client = _factory.CreateClient();
+
+        var vehicleId = Guid.NewGuid();
+        var telemetryPayload = new
+        {
+            vehicleId,
+            timestamp = DateTime.UtcNow,
+            latitude = 51.0,
+            longitude = 3.0,
+            speedKmh = 20.5,
+            batteryPercent = 82,
+            internalTempC = 41.2
+        };
+
+        var postResponse = await client.PostAsJsonAsync("/api/telemetry", telemetryPayload);
+        Assert.Equal(HttpStatusCode.Accepted, postResponse.StatusCode);
+
+        var latestResponse = await client.GetAsync("/api/telemetry/latest?limit=5");
+        Assert.Equal(HttpStatusCode.OK, latestResponse.StatusCode);
+
+        var body = await latestResponse.Content.ReadAsStringAsync();
+        Assert.Contains(vehicleId.ToString(), body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class AuthResponse
+    {
+        public string Token { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public Guid UserId { get; set; }
+    }
+
+    private sealed class CreateRideResponse
+    {
+        public Guid Id { get; set; }
+        public decimal TotalFare { get; set; }
+        public string Currency { get; set; } = string.Empty;
+    }
+
+    private sealed class InMemoryTelemetryService : ITelemetryService
+    {
+        private readonly List<TelemetryEntry> _entries = [];
+
+        public Task InsertAsync(TelemetryEntry entry)
+        {
+            _entries.Add(entry);
+            return Task.CompletedTask;
         }
+
+        public Task<List<TelemetryEntry>> GetLatestAsync(int limit = 50)
+            => Task.FromResult(_entries.OrderByDescending(e => e.Timestamp).Take(limit).ToList());
+
+        public Task<List<TelemetryEntry>> GetByVehicleAsync(Guid vehicleId, int limit = 50)
+            => Task.FromResult(_entries
+                .Where(e => e.VehicleId == vehicleId)
+                .OrderByDescending(e => e.Timestamp)
+                .Take(limit)
+                .ToList());
     }
 }

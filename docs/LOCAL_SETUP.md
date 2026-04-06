@@ -40,6 +40,14 @@ Seed/demo accounts
 
 CI / tests
 - Unit tests: dotnet test ./final.Tests
-- Integration tests (use Docker): dotnet test ./final.IntegrationTests
+- Integration tests: dotnet test ./final.IntegrationTests
+
+Observability endpoints
+- Health: http://localhost:5048/health
+- Prometheus metrics: http://localhost:5048/metrics
+
+Diagnostics + simulation
+- Sensor diagnostics latest: http://localhost:5048/api/sensors/diagnostics/latest?limit=10
+- Generate demo telemetry/diagnostics: .\scripts\simulate_vehicles.ps1 -BaseUrl "http://localhost:5000" -Iterations 20 -DelaySeconds 2
 
 If something still fails, paste the error output and I will help diagnose it.

@@ -1,8 +1,8 @@
 # build stage
 FROM node:18-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --silent
+COPY package.json package-lock.json* bun.lock* ./
+RUN if [ -f package-lock.json ]; then npm ci --silent; else npm install --silent; fi
 COPY . ./
 RUN npm run build
 

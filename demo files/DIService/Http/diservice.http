@@ -1,5 +1,0 @@
-@host = http://localhost:5000
-
-### Get Person Lifecycle
-GET {{host}}/people
-Accept: application/json

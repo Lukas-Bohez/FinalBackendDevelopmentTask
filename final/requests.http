@@ -1,0 +1,59 @@
+@base = http://localhost:5000
+
+### Health
+GET {{base}}/health
+
+### Login (admin)
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@novadrive.local",
+  "password": "Admin123!"
+}
+
+### Price estimate
+POST {{base}}/api/pricing/estimate
+Content-Type: application/json
+
+{
+  "distanceKm": 7.2,
+  "durationMinutes": 18,
+  "vehicleType": "Standard",
+  "startTime": "2026-04-06T19:00:00Z",
+  "loyaltyPoints": 240,
+  "discountCode": "SUMMER24"
+}
+
+### Telemetry insert
+POST {{base}}/api/telemetry
+Content-Type: application/json
+
+{
+  "vehicleId": "11111111-1111-1111-1111-111111111111",
+  "timestamp": "2026-04-06T19:00:00Z",
+  "latitude": 51.0,
+  "longitude": 3.0,
+  "speedKmh": 24.1,
+  "batteryPercent": 79,
+  "internalTempC": 40.2
+}
+
+### Telemetry latest
+GET {{base}}/api/telemetry/latest?limit=5
+
+### Sensor diagnostic insert
+POST {{base}}/api/sensors/diagnostics
+Content-Type: application/json
+
+{
+  "vehicleId": "11111111-1111-1111-1111-111111111111",
+  "sensorType": "Lidar",
+  "errorCode": "LIDAR_DRIFT",
+  "severity": "Warning",
+  "timestamp": "2026-04-06T19:00:00Z",
+  "rawSensorDataJson": "{\"delta\":0.12,\"unit\":\"m\"}"
+}
+
+### Sensor diagnostic latest
+GET {{base}}/api/sensors/diagnostics/latest?limit=10

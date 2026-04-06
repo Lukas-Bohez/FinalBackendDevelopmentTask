@@ -30,6 +30,7 @@ export default function App() {
   const [pickup, setPickup] = useState('51.0,3.0');
   const [dropoff, setDropoff] = useState('51.01,3.01');
   const [logs, setLogs] = useState([]);
+  const [diagnostics, setDiagnostics] = useState([]);
 
   async function getPrice(e) {
     e?.preventDefault();
@@ -43,11 +44,17 @@ export default function App() {
       discountCode: null,
     };
 
-    const res = await fetch(`${API_BASE}/api/public/price`, {
+    const res = await fetch(`${API_BASE}/api/pricing/estimate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+
+    if (!res.ok) {
+      alert('Price request failed');
+      setLoading(false);
+      return;
+    }
 
     const body = await res.json();
     setResult(body);
@@ -55,7 +62,7 @@ export default function App() {
   }
 
   async function register() {
-    const res = await fetch(`${API_BASE}/api/public/register`, {
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, fullName: 'Demo' }),
@@ -65,7 +72,7 @@ export default function App() {
   }
 
   async function login() {
-    const res = await fetch(`${API_BASE}/api/public/login`, {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -82,7 +89,7 @@ export default function App() {
 
   async function fetchRides(uid = userId, tok = token) {
     if (!uid) return;
-    const res = await fetch(`${API_BASE}/api/public/rides?passengerId=${uid}`, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
+    const res = await fetch(`${API_BASE}/api/rides?passengerId=${uid}`, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
     if (res.ok) setRides(await res.json());
   }
 
@@ -91,7 +98,14 @@ export default function App() {
     const [pl, pg] = pickup.split(',').map((x) => parseFloat(x));
     const [dl, dg] = dropoff.split(',').map((x) => parseFloat(x));
     const payload = { passengerId: userId, pickupLat: pl, pickupLng: pg, dropoffLat: dl, dropoffLng: dg, pickupAddress: 'Start', dropoffAddress: 'End' };
-    const res = await fetch(`${API_BASE}/api/public/rides`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const res = await fetch(`${API_BASE}/api/rides`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
     if (!res.ok) return alert('Ride failed');
     const body = await res.json();
     alert('Ride requested: ' + body.id);
@@ -99,7 +113,10 @@ export default function App() {
   }
 
   async function completeRide(rideId) {
-    const res = await fetch(`${API_BASE}/api/public/rides/${rideId}/complete`, { method: 'POST' });
+    const res = await fetch(`${API_BASE}/api/rides/${rideId}/complete`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!res.ok) return alert('Complete failed');
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -108,9 +125,15 @@ export default function App() {
   }
 
   async function fetchTelemetry() {
-    const res = await fetch(`${API_BASE}/api/public/telemetry/latest?limit=10`);
+    const res = await fetch(`${API_BASE}/api/telemetry/latest?limit=10`);
     if (!res.ok) return;
     setLogs(await res.json());
+  }
+
+  async function fetchDiagnostics() {
+    const res = await fetch(`${API_BASE}/api/sensors/diagnostics/latest?limit=10`);
+    if (!res.ok) return;
+    setDiagnostics(await res.json());
   }
 
   return (
@@ -208,7 +231,10 @@ export default function App() {
 
         <div style={{ border: '1px solid #eee', padding: 12, borderRadius: 6 }}>
           <h3>Telemetry</h3>
-          <button onClick={fetchTelemetry}>Load latest telemetry</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={fetchTelemetry}>Load latest telemetry</button>
+            <button onClick={fetchDiagnostics}>Load diagnostics</button>
+          </div>
           <div style={{ marginTop: 8 }}>
             {logs.map((l) => (
               <div key={l._id} style={{ padding: 6, borderBottom: '1px solid #f0f0f0' }}>
@@ -217,6 +243,20 @@ export default function App() {
                 </div>
                 <div>
                   Lat:{l.latitude} Lon:{l.longitude} Speed:{l.speedKmh} Battery:{l.batteryPercent}%
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <h4 style={{ marginTop: 12 }}>Sensor diagnostics</h4>
+          <div>
+            {diagnostics.map((d) => (
+              <div key={d._id} style={{ padding: 6, borderBottom: '1px solid #f0f0f0' }}>
+                <div>
+                  <b>{d.sensorType}</b> ({d.severity}) - {d.errorCode}
+                </div>
+                <div style={{ fontSize: 12 }}>
+                  Vehicle {d.vehicleId} @{new Date(d.timestamp).toLocaleTimeString()}
                 </div>
               </div>
             ))}

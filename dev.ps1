@@ -2,14 +2,39 @@
 dev.ps1 - start Nova Drive (PowerShell-friendly)
 - If Docker is available it runs `docker compose up --build -d`
 - Otherwise it starts the API with `dotnet run --project final`
-- Opens a new PowerShell window and runs the website dev server (bun or npm)
+- Waits for the web app and opens it in the browser automatically
 Usage: .\dev.ps1
 #>
 
 Write-Host "Starting Nova Drive development stack..." -ForegroundColor Cyan
 
+$siteUrl = "http://localhost:5173"
+
+function Wait-For-Url {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+        [int]$TimeoutSeconds = 180
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+                return $true
+            }
+        }
+        catch {
+            Start-Sleep -Seconds 2
+        }
+    }
+
+    return $false
+}
+
 function Start-Backend-With-Docker {
-    Write-Host "Docker detected - starting docker compose (detached)..." -ForegroundColor Green
+    Write-Host "Docker detected - starting full compose stack (detached)..." -ForegroundColor Green
     docker compose up --build -d
 }
 
@@ -45,8 +70,15 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
     Start-Backend-With-Docker
 } else {
     Start-Backend-Standalone
+    Start-Frontend
 }
 
-Start-Frontend
+Write-Host "Waiting for the web app to become available at $siteUrl ..." -ForegroundColor Cyan
+if (Wait-For-Url -Url $siteUrl) {
+    Write-Host "Opening browser to $siteUrl" -ForegroundColor Green
+    Start-Process $siteUrl
+} else {
+    Write-Host "Web app did not become available in time. Open $siteUrl manually." -ForegroundColor Yellow
+}
 
-Write-Host "Dev helper started - backend may be running in Docker or a separate window. Frontend running in a new window." -ForegroundColor Cyan
+Write-Host "Dev helper completed." -ForegroundColor Cyan
