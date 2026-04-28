@@ -69,3 +69,12 @@ $RECYCLE.BIN/
 *.local
 *.db
 
+# Bootstrap generated artifacts
+.env
+certs/
+logs/
+
+# Frontend build artifacts
+website tests/node_modules/
+website tests/dist/
+

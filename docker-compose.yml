@@ -1,48 +1,144 @@
-version: '3.8'
 services:
-  postgres:
-    image: postgres:17
+  api:
+    build:
+      context: ./final
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: novadrive
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__Postgres: Host=${POSTGRES_HOST};Port=${POSTGRES_PORT};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Mongo__ConnectionString: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}
+      Jwt__Key: ${JWT_SECRET}
+      Jwt__Issuer: ${JWT_ISSUER}
+      Jwt__Audience: ${JWT_AUDIENCE}
+      Serilog__WriteTo__2__Name: Seq
+      Serilog__WriteTo__2__Args__serverUrl: ${SEQ_URL}
+    ports:
+      - "5000:80"
+      - "5001:5001"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      seq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  postgres:
+    image: postgres:16-alpine
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   mongo:
-    image: mongo:6.0
+    image: mongo:7
+    env_file:
+      - .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     ports:
       - "27017:27017"
     volumes:
       - mongodata:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
-  app:
-    build:
-      context: ./final
+  mailpit:
+    image: axllent/mailpit:latest
+    env_file:
+      - .env
     ports:
-      - "5000:80"
-    depends_on:
-      - postgres
-      - mongo
+      - "8025:8025"
+      - "1025:1025"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/mailpit", "version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  seq:
+    image: datalust/seq:latest
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__Postgres=Host=postgres;Database=novadrive;Username=postgres;Password=postgres
-      - Mongo__ConnectionString=mongodb://mongo:27017
-      - Jwt__Key=ThisIsADevSecretKey_DoNotUseInProd_ChangeMe
+      ACCEPT_EULA: "Y"
+    ports:
+      - "80:80"
+      - "5341:5341"
+    volumes:
+      - seqdata:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   website:
     build:
       context: ./website tests
+    env_file:
+      - .env
+    environment:
+      VITE_API_BASE: /api
     ports:
       - "5173:80"
     depends_on:
-      - app
-    environment:
-      - VITE_API_BASE=/api
+      api:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  simulator:
+    build:
+      context: ./scripts
+      dockerfile: simulator.Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: http://api:80
+      SIMULATOR_DELAY_SECONDS: 3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "true"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   pgdata:
   mongodata:
+  seqdata:

@@ -8,7 +8,11 @@ RUN dotnet publish -c Release -o /app --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends wget ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
 EXPOSE 80
-ENV ASPNETCORE_URLS=http://+:80
+EXPOSE 5001
+ENV ASPNETCORE_URLS=http://+:80;http://+:5001
 ENTRYPOINT ["dotnet", "final.dll"]

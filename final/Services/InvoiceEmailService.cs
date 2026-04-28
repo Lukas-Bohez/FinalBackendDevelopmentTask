@@ -40,7 +40,8 @@ public sealed class InvoiceEmailService : IInvoiceEmailService
         var boundary = $"----novadrive-{Guid.NewGuid():N}";
         var builder = new StringBuilder();
 
-        builder.AppendLine($"From: {_configuration[\"Email:From\"] ?? \"no-reply@novadrive.local\"}");
+        string fromAddress = _configuration["Email:From"] ?? "no-reply@novadrive.local";
+        builder.AppendLine($"From: {fromAddress}");
         builder.AppendLine($"To: {recipientEmail}");
         builder.AppendLine($"Subject: {subject}");
         builder.AppendLine("MIME-Version: 1.0");

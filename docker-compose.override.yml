@@ -1,0 +1,13 @@
+services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Serilog__MinimumLevel__Default: Debug
+    volumes:
+      - ./final:/src
+      - ./logs:/app/logs
+    command: ["dotnet", "run", "--project", "/src/final.csproj", "--urls", "http://0.0.0.0:80;http://0.0.0.0:5001"]
+
+  simulator:
+    environment:
+      SIMULATOR_DELAY_SECONDS: 3
