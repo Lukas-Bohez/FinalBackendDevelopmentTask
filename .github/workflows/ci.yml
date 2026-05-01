@@ -24,13 +24,16 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
 
       - name: Restore
-        run: dotnet restore
+        run: |
+          dotnet restore ./final/final.csproj
+          dotnet restore ./final.Tests/final.Tests.csproj
+          dotnet restore ./final.IntegrationTests/final.IntegrationTests.csproj
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release --verbosity minimal
+        run: dotnet build ./final/final.csproj --no-restore --configuration Release --verbosity minimal
 
       - name: Run unit tests
-        run: dotnet test ./final.Tests --no-build --verbosity normal
+        run: dotnet test ./final.Tests/final.Tests.csproj --configuration Release --verbosity normal
 
       - name: Run integration tests
-        run: dotnet test ./final.IntegrationTests --no-build --verbosity normal
+        run: dotnet test ./final.IntegrationTests/final.IntegrationTests.csproj --configuration Release --verbosity normal

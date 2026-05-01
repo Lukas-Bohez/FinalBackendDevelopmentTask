@@ -28,16 +28,19 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore
-        run: dotnet restore
+        run: |
+          dotnet restore ./final/final.csproj
+          dotnet restore ./final.Tests/final.Tests.csproj
+          dotnet restore ./final.IntegrationTests/final.IntegrationTests.csproj
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build ./final/final.csproj --no-restore --configuration Release
 
       - name: Unit tests
-        run: dotnet test ./final.Tests --no-build --configuration Release
+        run: dotnet test ./final.Tests/final.Tests.csproj --configuration Release
 
       - name: Integration tests
-        run: dotnet test ./final.IntegrationTests --no-build --configuration Release
+        run: dotnet test ./final.IntegrationTests/final.IntegrationTests.csproj --configuration Release
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
