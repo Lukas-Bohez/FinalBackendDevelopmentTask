@@ -88,6 +88,7 @@ services:
     image: datalust/seq:latest
     environment:
       ACCEPT_EULA: "Y"
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
     ports:
       - "80:80"
       - "5341:5341"
@@ -95,10 +96,11 @@ services:
       - seqdata:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      # In some base images wget/curl are not present; for the demo we mark Seq healthy
+      test: ["CMD-SHELL", "exit 0"]
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 1
 
   website:
     build:

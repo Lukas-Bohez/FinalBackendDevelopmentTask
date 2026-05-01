@@ -24,7 +24,7 @@ while true; do
     lat="$(random_float 50.980000 51.040000)"
     lon="$(random_float 2.980000 3.040000)"
     speed="$(random_float 20 120)"
-    battery="$(random_float 25 100)"
+    battery="$(( $(random_int 76) + 25 ))"
     temp="$(random_float 35 75)"
     ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
