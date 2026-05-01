@@ -55,6 +55,17 @@ More local-run tips and troubleshooting: see `docs/LOCAL_SETUP.md`.
 
 CI: A GitHub Actions workflow (`.github/workflows/ci.yml`) runs unit + integration tests on push/PR.
 
+Repository publishing:
+- This workspace has been prepared for exam submission and includes a CI workflow. To publish the repository to the exam GitHub URL `https://github.com/howest-mct/exam-project-backend-Lukas-Bohez` you must either grant push access or run the push from your machine (see instructions below).
+
+To push from your machine:
+```powershell
+git remote add exam https://github.com/howest-mct/exam-project-backend-Lukas-Bohez.git
+git push https://<PERSONAL_ACCESS_TOKEN>@github.com/howest-mct/exam-project-backend-Lukas-Bohez.git HEAD:main --set-upstream
+```
+
+Or add me as a collaborator / provide a deploy key and I'll push and create the submission tag.
+
 EF Migrations (already added):
 - Migrations are in `final/Migrations` (InitialCreate)
 - To apply migrations locally against Postgres: `dotnet ef database update --project final --startup-project final`
