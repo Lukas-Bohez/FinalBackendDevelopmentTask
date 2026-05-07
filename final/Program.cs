@@ -191,6 +191,12 @@ app.UseCors("AllowAll");
 app.UseHttpMetrics();
 app.UseAuthentication();
 app.UseAuthorization();
+// Study guide endpoint (serves StudyGuide.md placed next to Program.cs)
+app.MapGet("/study", async (Microsoft.AspNetCore.Hosting.IWebHostEnvironment env) =>
+{
+    var file = Path.Combine(env.ContentRootPath, "StudyGuide.md");
+    return Results.File(file, "text/markdown");
+}).WithTags("Docs");
 app.MapGrpcService<NovaDrive.Grpc.TelemetryGrpcService>();
 app.MapMetrics();
 app.MapHealthChecks("/health");

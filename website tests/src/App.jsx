@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import ControlApp from './control/ControlApp';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
@@ -170,12 +171,11 @@ function App() {
   const [selectedId, setSelectedId] = useState('pricing');
   const [theme, setTheme] = useState('dark');
   const [services, setServices] = useState({});
+  const [appView, setAppView] = useState('study');
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('nova-theme');
-    if (savedTheme === 'light' || savedTheme === 'dark') {
-      setTheme(savedTheme);
-    }
+    if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
   }, []);
 
   useEffect(() => {
@@ -185,63 +185,33 @@ function App() {
 
   useEffect(() => {
     let mounted = true;
-
     const checkApiHealth = async () => {
       try {
         const response = await fetch(`${API_BASE}/health`);
-        if (mounted) {
-          setServices((prev) => ({ ...prev, api: { healthy: response.ok } }));
-        }
-      } catch (_) {
-        if (mounted) {
-          setServices((prev) => ({ ...prev, api: { healthy: false } }));
-        }
-      }
+        if (mounted) setServices((p) => ({ ...p, api: { healthy: response.ok } }));
+      } catch (_) { if (mounted) setServices((p) => ({ ...p, api: { healthy: false } })); }
     };
-
     checkApiHealth();
-    const intervalId = setInterval(checkApiHealth, 5000);
-
-    return () => {
-      mounted = false;
-      clearInterval(intervalId);
-    };
+    const id = setInterval(checkApiHealth, 5000);
+    return () => { mounted = false; clearInterval(id); };
   }, []);
 
   const filteredSections = useMemo(() => {
     const needle = searchQuery.trim().toLowerCase();
-    if (!needle) {
-      return FEATURE_SECTIONS;
-    }
-
+    if (!needle) return FEATURE_SECTIONS;
     return FEATURE_SECTIONS.filter((section) => {
       const searchable = [
-        section.title,
-        section.summary,
-        section.why,
-        section.detailed ?? '',
-        section.how,
-        section.file,
-        ...section.tags,
-        ...section.excerpt,
-        ...(section.steps ?? []),
+        section.title, section.summary, section.why, section.detailed ?? '', section.how, section.file,
+        ...section.tags, ...section.excerpt, ...(section.steps ?? [])
       ].join(' ').toLowerCase();
-
       return searchable.includes(needle);
     });
   }, [searchQuery]);
 
-  const selectedFeature = filteredSections.find((section) => section.id === selectedId)
-    ?? FEATURE_SECTIONS.find((section) => section.id === selectedId)
-    ?? filteredSections[0]
-    ?? FEATURE_SECTIONS[0];
+  const selectedFeature = filteredSections.find((s) => s.id === selectedId) ?? FEATURE_SECTIONS[0];
 
-  const quickStats = [
-    { label: 'searchable features', value: FEATURE_SECTIONS.length },
-    { label: 'services', value: 6 },
-    { label: 'databases', value: 2 },
-    { label: 'one-step startup', value: 'yes' },
-  ];
+  // expose setter globally for quick toggle
+  window.setAppView = setAppView;
 
   return (
     <div className="shell" data-theme={theme}>
@@ -255,18 +225,12 @@ function App() {
           </div>
 
           <h1>Complete ride-hailing platform in a single click.</h1>
-          <p>
-            Launch the full stack, then explain architecture, business rules, and code from one page.
-            Search any feature to instantly show overview, rationale, deep details, and implementation path.
-          </p>
+          <p>Launch the full stack, then explain architecture, business rules, and code from one page.</p>
 
           <div className="hero__actions">
-            <button type="button" onClick={() => document.querySelector('.unified-explorer')?.scrollIntoView({ behavior: 'smooth' })}>
-              Explore features
-            </button>
-            <button type="button" className="secondary" onClick={() => document.querySelector('.service-status')?.scrollIntoView({ behavior: 'smooth' })}>
-              Service status
-            </button>
+            <button type="button" onClick={() => setAppView('study')}>Explore features</button>
+            <button type="button" className="secondary" onClick={() => setAppView('study')}>Service status</button>
+            <button type="button" className="secondary" onClick={() => setAppView('control')}>Control UI</button>
           </div>
         </div>
 
@@ -278,180 +242,80 @@ function App() {
             <li>Wait for containers to become healthy</li>
             <li>Use the search to present any feature</li>
           </ol>
-
-          <div className="stats">
-            {quickStats.map((stat) => (
-              <div key={stat.label} className="stat">
-                <strong>{stat.value}</strong>
-                <span>{stat.label}</span>
-              </div>
-            ))}
-          </div>
         </aside>
       </header>
 
-      <section className="unified-explorer">
-        <div className="explorer-header">
-          <h2>Feature Explorer</h2>
-          <p>Search once, then explain business value and code in the same view.</p>
-        </div>
-
-        <div className="explorer-grid">
-          <div className="explorer-sidebar">
-            <label className="search">
-              <span>Search features</span>
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="pricing, telemetry, auth, compose..."
-              />
-            </label>
-
-            <div className="feature-list">
-              {filteredSections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  className={selectedFeature?.id === section.id ? 'feature-card active' : 'feature-card'}
-                  onClick={() => setSelectedId(section.id)}
-                >
-                  <span className="feature-card__title">{section.title}</span>
-                  <span className="feature-card__file">{section.file}</span>
-                  <span className="feature-card__summary">{section.summary}</span>
-                </button>
-              ))}
-
-              {filteredSections.length === 0 && (
-                <div className="empty-state">No matches. Try pricing, telemetry, email, or auth.</div>
-              )}
-            </div>
+      {appView === 'study' && (
+        <section className="unified-explorer">
+          <div className="explorer-header">
+            <h2>Feature Explorer</h2>
+            <p>Search once, then explain business value and code in the same view.</p>
           </div>
 
-          <article className="detail-panel">
-            <div className="detail-panel__header">
-              <div>
-                <div className="pill pill--muted">{selectedFeature.file}</div>
-                <h2>{selectedFeature.title}</h2>
-              </div>
+          <div className="explorer-grid">
+            <div className="explorer-sidebar">
+              <label className="search">
+                <span>Search features</span>
+                <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="pricing, telemetry, auth, compose..." />
+              </label>
 
-              <div className="tag-row">
-                {selectedFeature.tags.map((tag) => (
-                  <span key={tag} className="tag">{tag}</span>
+              <div className="feature-list">
+                {filteredSections.map((section) => (
+                  <button key={section.id} type="button" className={selectedFeature?.id === section.id ? 'feature-card active' : 'feature-card'} onClick={() => setSelectedId(section.id)}>
+                    <span className="feature-card__title">{section.title}</span>
+                    <span className="feature-card__file">{section.file}</span>
+                    <span className="feature-card__summary">{section.summary}</span>
+                  </button>
                 ))}
+                {filteredSections.length === 0 && <div className="empty-state">No matches. Try pricing, telemetry, email, or auth.</div>}
               </div>
             </div>
 
-            <div className="detail-grid">
-              <section className="detail-block">
-                <h3>Overview</h3>
-                <p>{selectedFeature.summary}</p>
-              </section>
+            <article className="detail-panel">
+              <div className="detail-panel__header">
+                <div>
+                  <div className="pill pill--muted">{selectedFeature.file}</div>
+                  <h2>{selectedFeature.title}</h2>
+                </div>
+                <div className="tag-row">{selectedFeature.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}</div>
+              </div>
 
-              <section className="detail-block">
-                <h3>Why this design</h3>
-                <p>{selectedFeature.why}</p>
-              </section>
+              <div className="detail-grid">
+                <section className="detail-block"><h3>Overview</h3><p>{selectedFeature.summary}</p></section>
+                <section className="detail-block"><h3>Why this design</h3><p>{selectedFeature.why}</p></section>
+                <section className="detail-block"><h3>Technical details</h3><p>{selectedFeature.detailed ?? selectedFeature.how}</p></section>
+                <section className="detail-block"><h3>How it works</h3><p>{selectedFeature.how}</p></section>
 
-              <section className="detail-block">
-                <h3>Technical details</h3>
-                <p>{selectedFeature.detailed ?? selectedFeature.how}</p>
-              </section>
+                {selectedFeature.steps && selectedFeature.steps.length > 0 && (
+                  <section className="detail-block code-block"><h3>Step by step</h3><ol className="steps-list">{selectedFeature.steps.map((step) => <li key={step}>{step}</li>)}</ol></section>
+                )}
 
-              <section className="detail-block">
-                <h3>How it works</h3>
-                <p>{selectedFeature.how}</p>
-              </section>
+                {selectedFeature.services && selectedFeature.services.length > 0 && (
+                  <section className="detail-block code-block"><h3>Service map</h3><table className="services-table"><thead><tr><th>Service</th><th>Port</th><th>Type</th><th>Purpose</th></tr></thead><tbody>{selectedFeature.services.map((svc) => (<tr key={`${svc.name}-${svc.port}`}><td>{svc.name}</td><td><code>{svc.port}</code></td><td>{svc.type}</td><td>{svc.purpose}</td></tr>))}</tbody></table></section>
+                )}
 
-              {selectedFeature.steps && selectedFeature.steps.length > 0 && (
-                <section className="detail-block code-block">
-                  <h3>Step by step</h3>
-                  <ol className="steps-list">
-                    {selectedFeature.steps.map((step) => (
-                      <li key={step}>{step}</li>
-                    ))}
-                  </ol>
-                </section>
-              )}
+                <section className="detail-block code-block"><h3>Code path</h3><pre>{selectedFeature.excerpt.join('\n')}</pre></section>
+              </div>
+            </article>
+          </div>
+        </section>
+      )}
 
-              {selectedFeature.services && selectedFeature.services.length > 0 && (
-                <section className="detail-block code-block">
-                  <h3>Service map</h3>
-                  <table className="services-table">
-                    <thead>
-                      <tr>
-                        <th>Service</th>
-                        <th>Port</th>
-                        <th>Type</th>
-                        <th>Purpose</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedFeature.services.map((svc) => (
-                        <tr key={`${svc.name}-${svc.port}`}>
-                          <td>{svc.name}</td>
-                          <td><code>{svc.port}</code></td>
-                          <td>{svc.type}</td>
-                          <td>{svc.purpose}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </section>
-              )}
-
-              <section className="detail-block code-block">
-                <h3>Code path</h3>
-                <pre>{selectedFeature.excerpt.join('\n')}</pre>
-              </section>
-            </div>
-          </article>
-        </div>
-      </section>
+      {appView === 'control' && <ControlApp />}
 
       <section className="service-status">
         <h2>Service Status And URLs</h2>
         <div className="service-grid">
-          <div className="service-card">
-            <h3>API <StatusBadge status={services.api} /></h3>
-            <p className="service-url">http://localhost:5000</p>
-            <small>REST and gRPC endpoints</small>
-          </div>
-
-          <div className="service-card">
-            <h3>PostgreSQL</h3>
-            <p className="service-url">localhost:5432</p>
-            <small>Users, rides, vehicles, payments</small>
-          </div>
-
-          <div className="service-card">
-            <h3>MongoDB</h3>
-            <p className="service-url">localhost:27017</p>
-            <small>Telemetry and diagnostics</small>
-          </div>
-
-          <div className="service-card">
-            <h3>Mailpit</h3>
-            <p className="service-url"><a href="http://localhost:8025" target="_blank" rel="noreferrer">http://localhost:8025</a></p>
-            <small>Invoice email preview</small>
-          </div>
-
-          <div className="service-card">
-            <h3>Seq</h3>
-            <p className="service-url"><a href="http://localhost:80" target="_blank" rel="noreferrer">http://localhost:80</a></p>
-            <small>Structured logs</small>
-          </div>
-
-          <div className="service-card">
-            <h3>Simulator</h3>
-            <p className="service-url">background task</p>
-            <small>Telemetry generator</small>
-          </div>
+          <div className="service-card"><h3>API <StatusBadge status={services.api} /></h3><p className="service-url">http://localhost:5000</p><small>REST and gRPC endpoints</small></div>
+          <div className="service-card"><h3>PostgreSQL</h3><p className="service-url">localhost:5432</p><small>Users, rides, vehicles, payments</small></div>
+          <div className="service-card"><h3>MongoDB</h3><p className="service-url">localhost:27017</p><small>Telemetry and diagnostics</small></div>
+          <div className="service-card"><h3>Mailpit</h3><p className="service-url"><a href="http://localhost:8025" target="_blank" rel="noreferrer">http://localhost:8025</a></p><small>Invoice email preview</small></div>
+          <div className="service-card"><h3>Seq</h3><p className="service-url"><a href="http://localhost:80" target="_blank" rel="noreferrer">http://localhost:80</a></p><small>Structured logs</small></div>
+          <div className="service-card"><h3>Simulator</h3><p className="service-url">background task</p><small>Telemetry generator</small></div>
         </div>
       </section>
 
-      <footer className="footer-note">
-        One page, one search, full explanation plus code path.
-      </footer>
+      <footer className="footer-note">One page, one search, full explanation plus code path.</footer>
     </div>
   );
 }
