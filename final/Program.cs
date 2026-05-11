@@ -409,6 +409,34 @@ telemetry_api.MapGet("/vehicle/{vehicleId:guid}", async (Guid vehicleId, int? li
     return Results.Ok(await telemetry.GetByVehicleAsync(vehicleId, l));
 });
 
+// ─── ACTIVE RIDES (as telemetry proxy for GUI-created rides) ────
+telemetry_api.MapGet("/active-rides", async (IRideRepository rides, IVehicleRepository vehicles) =>
+{
+    var activeRides = await rides.GetAllAsync();
+    activeRides = activeRides
+        .Where(r => r.Status == RideStatus.Requested || r.Status == RideStatus.EnRoute)
+        .ToList();
+
+    var result = new List<object>();
+    foreach (var ride in activeRides)
+    {
+        var vehicle = ride.VehicleId.HasValue ? await vehicles.GetByIdAsync(ride.VehicleId.Value) : null;
+        result.Add(new
+        {
+            vehicleId = ride.VehicleId?.ToString() ?? "unassigned",
+            timestamp = ride.RequestedAt,
+            latitude = vehicle?.Latitude ?? ride.PickupLat,
+            longitude = vehicle?.Longitude ?? ride.PickupLng,
+            speedKmh = 0.0,
+            batteryPercent = 50,
+            internalTempC = 22.0,
+            displayName = $"Ride {ride.Id.ToString().Substring(0, 8)}",
+            isRide = true
+        });
+    }
+    return Results.Ok(result);
+});
+
 // ─── SENSOR DIAGNOSTICS ───────────────────────────────────
 var diagnostics_api = app.MapGroup("/api/sensors/diagnostics").WithTags("Sensor Diagnostics");
 
