@@ -159,6 +159,129 @@ const FEATURE_SECTIONS = [
   },
 ];
 
+const FEATURE_EXPLAINER_MAP = {
+  bootstrap: {
+    answer30s: 'The launcher is an orchestration script: it validates prerequisites, starts compose services in order, waits on health checks, applies setup tasks, and prints demo URLs. It exists to remove manual setup friction during demos and grading.',
+    exactEdits: [
+      'Launch Nova Drive.cmd:1 (Windows entrypoint)',
+      'docker-compose.yml:1 (service graph the launcher starts)',
+      'docker-compose.yml:30 (API healthcheck gate)',
+      'docker-compose.yml:84 (Mailpit healthcheck gate)',
+    ],
+    checklist: [
+      'Keep health checks deterministic so startup waits are reliable.',
+      'When adding a service, add ports + depends_on + healthcheck.',
+      'Verify printed URLs match mapped ports in compose.',
+    ],
+  },
+  compose: {
+    answer30s: 'docker-compose.yml is the deployment topology for local/dev: each service has image/build config, environment, ports, dependencies, and health checks. This file is the single source for container wiring.',
+    exactEdits: [
+      'docker-compose.yml:1 (services start)',
+      'docker-compose.yml:3 (api service definition)',
+      'docker-compose.yml:45 (postgres)',
+      'docker-compose.yml:63 (mongo)',
+      'docker-compose.yml:73 (mailpit)',
+      'docker-compose.yml:104 (website)',
+    ],
+    checklist: [
+      'Update env vars in .env and compose together.',
+      'Add healthcheck for every dependency-gated service.',
+      'Avoid port collisions before changing host mappings.',
+    ],
+  },
+  auth: {
+    answer30s: 'Auth is split cleanly: Program.cs exposes register/login endpoints, while AuthService handles hashing and JWT generation. Endpoints validate inputs, enforce unique email, and return a signed token.',
+    exactEdits: [
+      'final/Program.cs:225 (register endpoint)',
+      'final/Program.cs:250 (login endpoint)',
+      'final/Program.cs:71 (JWT validation settings)',
+      'final/Services/AuthService.cs:32 (GenerateJwtToken)',
+      'final/Validators/RegisterValidator.cs:1 (validation rules)',
+    ],
+    checklist: [
+      'Keep issuer/audience/key aligned between generation and validation.',
+      'If adding claims, update consumers that read claims.',
+      'Never store plain passwords; keep BCrypt flow intact.',
+    ],
+  },
+  pricing: {
+    answer30s: 'Pricing is centralized in one deterministic method, so business rules are testable and explainable. Endpoint code only validates request and calls PricingService.',
+    exactEdits: [
+      'final/Program.cs:270 (pricing endpoint)',
+      'final/Services/PricingService.cs:36 (CalculatePriceAsync)',
+      'final.Tests/PricingServiceTests.cs:1 (expected rule behavior)',
+    ],
+    checklist: [
+      'Change constants and formulas only in PricingService.',
+      'Keep rounding and minimum fare policy explicit.',
+      'Update/add tests when changing discount or VAT logic.',
+    ],
+  },
+  rides: {
+    answer30s: 'Ride lifecycle is orchestration in Program.cs: create ride, estimate fare, persist state, then complete ride with payment, invoice generation, and email send.',
+    exactEdits: [
+      'final/Program.cs:287 (ride creation)',
+      'final/Program.cs:343 (ride completion)',
+      'final/Models/Ride.cs:5 (ride entity fields)',
+      'final/Services/PdfService.cs:17 (invoice pdf generation)',
+      'final/Services/InvoiceEmailService.cs:21 (invoice email send)',
+    ],
+    checklist: [
+      'Update entity + DTO + endpoint when adding ride fields.',
+      'Keep completion idempotency checks for already-completed rides.',
+      'Confirm payment/invoice/email side effects after logic changes.',
+    ],
+  },
+  telemetry: {
+    answer30s: 'Telemetry uses both REST and unary gRPC ingest. Mongo-backed services have short timeouts and fallback demo data to keep UI responsive when telemetry storage is unavailable.',
+    exactEdits: [
+      'final/Protos/telemetry.proto:1 (protobuf schema)',
+      'final/Protos/telemetry.proto:5 (Send RPC contract)',
+      'final/Grpc/TelemetryGrpcService.cs:20 (gRPC mapping)',
+      'final/Program.cs:392 (REST telemetry post)',
+      'final/Services/TelemetryService.cs:33 (QueryTimeout)',
+      'final/Services/TelemetryService.cs:77 (fallback demo data)',
+      'final/Services/SensorDiagnosticsService.cs:47 (diagnostics timeout)',
+    ],
+    checklist: [
+      'If proto changes, update server mapping and clients together.',
+      'Keep timeout and fallback behavior aligned with UI expectations.',
+      'Preserve stable protobuf field numbers for compatibility.',
+    ],
+  },
+  email: {
+    answer30s: 'InvoiceEmailService sends via SMTP when configured, otherwise writes .eml to outbox fallback. PdfService builds the invoice PDF content and path used by email logic.',
+    exactEdits: [
+      'final/Services/InvoiceEmailService.cs:21 (SendInvoiceAsync fallback logic)',
+      'final/Services/InvoiceEmailService.cs:66 (SMTP send path)',
+      'final/Services/PdfService.cs:17 (GenerateInvoicePdf)',
+      'final/Program.cs:372 (PDF generation call)',
+      'final/Program.cs:378 (invoice email trigger)',
+    ],
+    checklist: [
+      'Keep SMTP and outbox fallback both working in dev.',
+      'If invoice content changes, reflect in both PDF and email text.',
+      'Ensure attachment mime type remains application/pdf.',
+    ],
+  },
+  ui: {
+    answer30s: 'App.jsx is the presentation control center: feature explorer, teacher Q&A, control UI switch, and search/indexing logic all live there for demo-first navigation.',
+    exactEdits: [
+      'website tests/src/App.jsx:4 (API base source)',
+      'website tests/src/App.jsx:518 (app view state)',
+      'website tests/src/App.jsx:611 (Feature Explorer render)',
+      'website tests/src/App.jsx:667 (Teacher Q&A render)',
+      'website tests/src/control/ControlApp.jsx:14 (control shell)',
+    ],
+    checklist: [
+      'Add new top-level modes via appView + hero buttons + conditional render.',
+      'Keep searchable text arrays updated when adding new sections.',
+      'Update styles.css if adding new panel patterns.',
+    ],
+  },
+};
+
 const TEACHER_QA = [
   {
     id: 'qa-proto',
@@ -553,6 +676,7 @@ function App() {
   }, [searchQuery]);
 
   const selectedFeature = filteredSections.find((s) => s.id === selectedId) ?? FEATURE_SECTIONS[0];
+  const selectedFeatureGuide = FEATURE_EXPLAINER_MAP[selectedFeature.id] ?? null;
 
   const filteredQa = useMemo(() => {
     const needle = qaQuery.trim().toLowerCase();
@@ -614,6 +738,7 @@ function App() {
             <h2>Feature Explorer</h2>
             <p>Search once, then explain business value and code in the same view.</p>
           </div>
+          <div className="notice-row" style={{ marginBottom: '14px' }}>Updated: each feature now includes a teacher-ready 30-second answer, exact file:line edit points, and a safe change checklist.</div>
 
           <div className="explorer-grid">
             <div className="explorer-sidebar">
@@ -648,6 +773,18 @@ function App() {
                 <section className="detail-block"><h3>Why this design</h3><p>{selectedFeature.why}</p></section>
                 <section className="detail-block"><h3>Technical details</h3><p>{selectedFeature.detailed ?? selectedFeature.how}</p></section>
                 <section className="detail-block"><h3>How it works</h3><p>{selectedFeature.how}</p></section>
+
+                {selectedFeatureGuide && (
+                  <section className="detail-block code-block"><h3>Teacher-ready answer (30s)</h3><p>{selectedFeatureGuide.answer30s}</p></section>
+                )}
+
+                {selectedFeatureGuide && selectedFeatureGuide.exactEdits?.length > 0 && (
+                  <section className="detail-block code-block"><h3>Exact file:line edit points</h3><ol className="steps-list">{selectedFeatureGuide.exactEdits.map((anchor) => <li key={anchor}>{anchor}</li>)}</ol></section>
+                )}
+
+                {selectedFeatureGuide && selectedFeatureGuide.checklist?.length > 0 && (
+                  <section className="detail-block code-block"><h3>If you change this feature</h3><ol className="steps-list">{selectedFeatureGuide.checklist.map((step) => <li key={step}>{step}</li>)}</ol></section>
+                )}
 
                 {selectedFeature.steps && selectedFeature.steps.length > 0 && (
                   <section className="detail-block code-block"><h3>Step by step</h3><ol className="steps-list">{selectedFeature.steps.map((step) => <li key={step}>{step}</li>)}</ol></section>
