@@ -66,7 +66,7 @@ const FEATURE_SECTIONS = [
     file: 'final/Program.cs + Services/AuthService.cs',
     summary: 'Registers passengers, hashes passwords, logs users in, and issues JWTs that protect the public API.',
     why: 'The platform needs a straightforward token-based identity layer that works offline and inside Docker.',
-    detailed: 'User authentication flows through a JWT (JSON Web Token) model. New users register with an email and password, which are validated (email must be unique, password must meet security rules). The password is hashed using bcrypt with a salt and stored in PostgreSQL. On login, the system compares the provided password against the stored hash, and if it matches, it issues a signed JWT with a 7-day expiration that includes the user ID and email as claims. The token is returned to the client and must be included in the Authorization header (Bearer scheme) for all protected endpoints. The API validates the token signature and expiration on every request.',
+    detailed: 'User authentication uses JWT tokens. Users register with email and password, inputs are validated, and passwords are stored as bcrypt hashes. On login, credentials are verified and the API issues a signed JWT containing user id, role, and email claims. The token currently expires after 8 hours and must be sent as a Bearer token for protected endpoints.',
     how: 'The API validates the DTO, checks for duplicate email addresses, hashes passwords, and returns a signed token for later requests.',
     excerpt: [
       'ValidateAsync(dto)',
@@ -115,7 +115,7 @@ const FEATURE_SECTIONS = [
     file: 'final/Program.cs + Grpc/TelemetryGrpcService.cs',
     summary: 'Accepts high-volume telemetry and diagnostics data and stores it in MongoDB with indexes designed for time-based queries.',
     why: 'Telemetry is the write-heavy part of the system, so keeping it separate makes the design easier to defend.',
-    detailed: 'Vehicles and the simulator send telemetry snapshots every 3 seconds: GPS coordinates, speed, battery percentage, engine diagnostics, tire pressure, brake wear, etc. The API exposes a POST /api/telemetry endpoint and a gRPC StreamTelemetry service for high-volume ingestion. Each snapshot is stored immediately in MongoDB with a TTL (time-to-live) index so old data automatically expires after 30 days, keeping storage bounded. The MongoDB collection has indexes on timestamp and vehicle_id for fast queries. A separate /api/sensors/diagnostics endpoint stores detailed fault codes and sensor readings. This separation keeps the write-heavy telemetry path independent from the transactional PostgreSQL database, preventing lock contention during peak load.',
+    detailed: 'Vehicles and the simulator send telemetry snapshots with location, speed, battery, and temperature fields. The API exposes REST telemetry endpoints and one unary gRPC method called Send for ingest. Telemetry is stored in MongoDB, while local demo mode uses fast timeouts with fallback demo data so the UI does not hang when Mongo is unavailable. Diagnostics are stored separately through /api/sensors/diagnostics.',
     how: 'The API accepts telemetry snapshots, the simulator posts them continuously, and MongoDB stores them for dashboard queries.',
     excerpt: [
       'MapPost("/api/telemetry")',
@@ -159,6 +159,129 @@ const FEATURE_SECTIONS = [
   },
 ];
 
+const TEACHER_QA = [
+  {
+    id: 'qa-proto',
+    question: 'What does the proto file do?',
+    shortAnswer: 'It defines the gRPC contract: service, methods, and message schemas with stable field numbers.',
+    explain: 'The proto file is the wire contract for telemetry gRPC calls. It declares TelemetryService.Send and the TelemetryEntry and TelemetryAck message formats. Field numbers are the real protocol identity, so they must remain stable for backward compatibility.',
+    whereToEdit: 'final/Protos/telemetry.proto',
+    whatToEdit: 'Add or adjust message fields and method signatures. Keep existing field numbers stable; only add new numbers.',
+  },
+  {
+    id: 'qa-migrations',
+    question: 'What were migrations for?',
+    shortAnswer: 'Migrations are EF Core schema history, used to create and evolve the SQL database safely.',
+    explain: 'InitialCreate builds core SQL tables and indexes. The migration snapshot tracks the current model so future schema diffs can be generated. On startup, Program.cs applies migrations for non-SQLite providers, while SQLite demo mode uses EnsureCreated for resilience.',
+    whereToEdit: 'final/Models + final/Data/NovaDriveContext.cs',
+    whatToEdit: 'Change entity classes or fluent mappings, then generate a new migration. Do not hand-edit old migration history unless intentionally rewriting it.',
+  },
+  {
+    id: 'qa-grpc',
+    question: 'What does gRPC do in this app?',
+    shortAnswer: 'It provides a typed telemetry ingest endpoint alongside REST.',
+    explain: 'gRPC is used for telemetry ingest through TelemetryService.Send. The server maps protobuf data into domain telemetry entries and stores them via ITelemetryService. It is HTTP/2 and protobuf-based, while the rest of the app mainly uses JSON REST endpoints.',
+    whereToEdit: 'final/Grpc/TelemetryGrpcService.cs + final/Program.cs + final/Protos/telemetry.proto',
+    whatToEdit: 'Update contract in proto, update mapping logic in TelemetryGrpcService, and keep service registration and mapping in Program.cs.',
+  },
+  {
+    id: 'qa-pricing',
+    question: 'Where do I change fare rules?',
+    shortAnswer: 'PricingService.cs contains all pricing rules in one deterministic function.',
+    explain: 'Base fare, per-km and per-minute rates, vehicle multipliers, night surcharge, loyalty discount, promo discount, VAT, and minimum fare are all applied in PricingService.CalculatePriceAsync in a clear sequence.',
+    whereToEdit: 'final/Services/PricingService.cs',
+    whatToEdit: 'Tune constants and formulas inside CalculatePriceAsync. Keep rounding and minimum fare rules consistent with tests.',
+  },
+  {
+    id: 'qa-token',
+    question: 'Where do I change JWT lifetime or claims?',
+    shortAnswer: 'AuthService.cs controls token creation and expiration.',
+    explain: 'GenerateJwtToken defines claims (sub, role, email), signing key usage, issuer/audience, and token expiration. Program.cs configures JWT validation rules to match.',
+    whereToEdit: 'final/Services/AuthService.cs + final/Program.cs',
+    whatToEdit: 'Change expires in GenerateJwtToken and keep validation issuer/audience/signing key aligned in Program.cs.',
+  },
+  {
+    id: 'qa-telemetry-timeout',
+    question: 'Why does telemetry not hang anymore, and where can I tune it?',
+    shortAnswer: 'Mongo calls use 2-second timeouts with fallback demo data.',
+    explain: 'TelemetryService and SensorDiagnosticsService both apply short Mongo connection/query timeouts. On failure, they return generated demo entries so frontend views remain responsive in local development.',
+    whereToEdit: 'final/Services/TelemetryService.cs + final/Services/SensorDiagnosticsService.cs',
+    whatToEdit: 'Adjust QueryTimeout and fallback methods CreateDemoTelemetry/CreateDemoDiagnostics.',
+  },
+  {
+    id: 'qa-db-provider',
+    question: 'How do I switch between SQLite and PostgreSQL?',
+    shortAnswer: 'Database provider is selected in Program.cs from configuration.',
+    explain: 'Program.cs reads Database:Provider and configures DbContext accordingly. sqlite uses local file, otherwise the app uses PostgreSQL connection settings and migrations.',
+    whereToEdit: 'final/Program.cs + final/appsettings.Development.json',
+    whatToEdit: 'Set Database.Provider and connection strings. For local demos keep sqlite enabled in development settings.',
+  },
+  {
+    id: 'qa-endpoints',
+    question: 'Where are API endpoints defined?',
+    shortAnswer: 'Most endpoints are Minimal API route groups in Program.cs.',
+    explain: 'Auth, pricing, rides, telemetry, diagnostics, tickets, and admin groups are mapped in Program.cs. Route handlers call validators, repositories, and services.',
+    whereToEdit: 'final/Program.cs',
+    whatToEdit: 'Add or change route handlers in the relevant MapGroup section. Keep tags and auth requirements consistent.',
+  },
+  {
+    id: 'qa-seed',
+    question: 'Where do demo users/vehicles come from?',
+    shortAnswer: 'Program.cs seeds them during startup in the migrate/seed block.',
+    explain: 'After database initialization, Program.cs checks for existing records and inserts admin/passenger demo users, vehicles, and discount codes when missing.',
+    whereToEdit: 'final/Program.cs',
+    whatToEdit: 'Update seed emails/passwords/vehicles/discounts inside the startup scope block.',
+  },
+  {
+    id: 'qa-ride-flow',
+    question: 'Where is ride request and completion logic?',
+    shortAnswer: 'Ride lifecycle handlers are in Program.cs under /api/rides.',
+    explain: 'Request creates a ride from coordinates, estimates distance and duration, computes price, and stores it. Completion marks ride as completed, credits loyalty points, creates payment, generates PDF invoice, and sends email.',
+    whereToEdit: 'final/Program.cs + final/Services/PdfService.cs + final/Services/InvoiceEmailService.cs',
+    whatToEdit: 'Adjust request/complete handler logic and invoice/email service behavior as needed.',
+  },
+  {
+    id: 'qa-front-api',
+    question: 'Where does frontend API base URL come from?',
+    shortAnswer: 'It uses VITE_API_BASE with fallback to same-origin paths.',
+    explain: 'The frontend reads import.meta.env.VITE_API_BASE. If empty, requests are built from relative paths. This enables local proxy/same-host setups or explicit API host config.',
+    whereToEdit: 'website tests/src/App.jsx + website tests/src/control/*',
+    whatToEdit: 'Update API_BASE usage and environment variable wiring; keep endpoint paths consistent.',
+  },
+  {
+    id: 'qa-ui-switch',
+    question: 'Where do I change the main UI navigation views?',
+    shortAnswer: 'App.jsx controls view state and which panels render.',
+    explain: 'The UI switches between study, control, and teacher Q&A modes based on appView state. Hero buttons set the mode, and each mode renders a dedicated section.',
+    whereToEdit: 'website tests/src/App.jsx',
+    whatToEdit: 'Adjust appView state, hero action buttons, and conditional rendering blocks.',
+  },
+  {
+    id: 'qa-control-ui',
+    question: 'Where do I change one-click demo actions?',
+    shortAnswer: 'ControlApp.jsx contains quick actions and flow orchestration.',
+    explain: 'ControlApp manages login state, dashboard actions, ride demo, and transitions to specific forms. Subcomponents handle individual forms and telemetry listing.',
+    whereToEdit: 'website tests/src/control/ControlApp.jsx and child components',
+    whatToEdit: 'Edit runAuthDemo/runRideDemo, notices, and component props/flow.',
+  },
+  {
+    id: 'qa-schema-change',
+    question: 'If I add a field to a model, what exactly must I update?',
+    shortAnswer: 'Update model, mapping, migration, DTO/endpoint, and UI where shown.',
+    explain: 'A full schema change usually touches entity model, DbContext mapping, generated migration, request/response DTOs, route handlers, and frontend display/forms if the field is user-facing.',
+    whereToEdit: 'final/Models + final/Data/NovaDriveContext.cs + final/DTOs + final/Program.cs + frontend components',
+    whatToEdit: 'Apply end-to-end changes so storage, API contract, and UI stay consistent.',
+  },
+  {
+    id: 'qa-observability',
+    question: 'How do logging and metrics work here?',
+    shortAnswer: 'Serilog handles logs; Prometheus middleware exposes metrics.',
+    explain: 'Program.cs configures Serilog console output and Prometheus HTTP metrics middleware. This supports demo visibility and basic observability from startup onward.',
+    whereToEdit: 'final/Program.cs + appsettings.json',
+    whatToEdit: 'Adjust logging sinks/levels in configuration and metrics middleware placement in the pipeline.',
+  },
+];
+
 const StatusBadge = ({ status }) => {
   if (!status) {
     return <span className="status-badge error">offline</span>;
@@ -168,7 +291,9 @@ const StatusBadge = ({ status }) => {
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [qaQuery, setQaQuery] = useState('');
   const [selectedId, setSelectedId] = useState('pricing');
+  const [selectedQaId, setSelectedQaId] = useState('qa-proto');
   const [theme, setTheme] = useState('dark');
   const [services, setServices] = useState({});
   const [appView, setAppView] = useState('study');
@@ -210,6 +335,23 @@ function App() {
 
   const selectedFeature = filteredSections.find((s) => s.id === selectedId) ?? FEATURE_SECTIONS[0];
 
+  const filteredQa = useMemo(() => {
+    const needle = qaQuery.trim().toLowerCase();
+    if (!needle) return TEACHER_QA;
+    return TEACHER_QA.filter((item) => {
+      const searchable = [
+        item.question,
+        item.shortAnswer,
+        item.explain,
+        item.whereToEdit,
+        item.whatToEdit,
+      ].join(' ').toLowerCase();
+      return searchable.includes(needle);
+    });
+  }, [qaQuery]);
+
+  const selectedQa = filteredQa.find((q) => q.id === selectedQaId) ?? TEACHER_QA[0];
+
   // expose setter globally for quick toggle
   window.setAppView = setAppView;
 
@@ -230,6 +372,7 @@ function App() {
           <div className="hero__actions">
             <button type="button" onClick={() => setAppView('study')}>Explore features</button>
             <button type="button" className="secondary" onClick={() => setAppView('study')}>Service status</button>
+            <button type="button" className="secondary" onClick={() => setAppView('qa')}>Teacher Q&A</button>
             <button type="button" className="secondary" onClick={() => setAppView('control')}>Control UI</button>
           </div>
         </div>
@@ -301,6 +444,63 @@ function App() {
         </section>
       )}
 
+      {appView === 'qa' && (
+        <section className="unified-explorer">
+          <div className="explorer-header">
+            <h2>Teacher Q&A Prep</h2>
+            <p>Use this during exam explanations: likely questions, concise answers, and exact places to edit in the codebase.</p>
+          </div>
+
+          <div className="explorer-grid">
+            <div className="explorer-sidebar">
+              <label className="search">
+                <span>Search questions</span>
+                <input value={qaQuery} onChange={(e) => setQaQuery(e.target.value)} placeholder="proto, migrations, grpc, pricing, where to edit..." />
+              </label>
+
+              <div className="feature-list">
+                {filteredQa.map((item) => (
+                  <button key={item.id} type="button" className={selectedQa?.id === item.id ? 'feature-card active' : 'feature-card'} onClick={() => setSelectedQaId(item.id)}>
+                    <span className="feature-card__title">{item.question}</span>
+                    <span className="feature-card__file">{item.whereToEdit}</span>
+                    <span className="feature-card__summary">{item.shortAnswer}</span>
+                  </button>
+                ))}
+                {filteredQa.length === 0 && <div className="empty-state">No matches. Try proto, migrations, grpc, or where to edit.</div>}
+              </div>
+            </div>
+
+            <article className="detail-panel">
+              <div className="detail-panel__header">
+                <div>
+                  <div className="pill pill--muted">Exam answer</div>
+                  <h2>{selectedQa.question}</h2>
+                </div>
+              </div>
+
+              <div className="detail-grid">
+                <section className="detail-block">
+                  <h3>Short answer</h3>
+                  <p>{selectedQa.shortAnswer}</p>
+                </section>
+                <section className="detail-block">
+                  <h3>Deeper explanation</h3>
+                  <p>{selectedQa.explain}</p>
+                </section>
+                <section className="detail-block">
+                  <h3>Where to edit</h3>
+                  <p>{selectedQa.whereToEdit}</p>
+                </section>
+                <section className="detail-block">
+                  <h3>What to edit</h3>
+                  <p>{selectedQa.whatToEdit}</p>
+                </section>
+              </div>
+            </article>
+          </div>
+        </section>
+      )}
+
       {appView === 'control' && <ControlApp />}
 
       <section className="service-status">
@@ -315,7 +515,7 @@ function App() {
         </div>
       </section>
 
-      <footer className="footer-note">One page, one search, full explanation plus code path.</footer>
+      <footer className="footer-note">One page for features, control flows, and teacher-style Q&A with edit pointers.</footer>
     </div>
   );
 }
