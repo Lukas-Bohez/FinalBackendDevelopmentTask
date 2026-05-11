@@ -405,6 +405,102 @@ const TEACHER_QA = [
   },
 ];
 
+const EXACT_EDIT_MAP = [
+  {
+    area: 'Startup and wiring',
+    anchors: [
+      'final/Program.cs:25 (database provider switch)',
+      'final/Program.cs:71 (JWT bearer configuration)',
+      'final/Program.cs:94 (AddGrpc registration)',
+      'final/Program.cs:122 (Migrate invocation)',
+      'final/Program.cs:195 (/study endpoint)',
+      'final/Program.cs:200 (MapGrpcService)',
+      'final/Program.cs:201 (MapMetrics)',
+      'final/Program.cs:202 (MapHealthChecks)',
+    ],
+  },
+  {
+    area: 'Auth and tokens',
+    anchors: [
+      'final/Program.cs:225 (register endpoint)',
+      'final/Program.cs:250 (login endpoint)',
+      'final/Services/AuthService.cs:32 (GenerateJwtToken)',
+      'final/Validators/RegisterValidator.cs:1 (register validation rules)',
+    ],
+  },
+  {
+    area: 'Pricing and fare logic',
+    anchors: [
+      'final/Program.cs:270 (pricing estimate endpoint)',
+      'final/Services/PricingService.cs:36 (CalculatePriceAsync)',
+      'final.Tests/PricingServiceTests.cs:1 (pricing tests)',
+    ],
+  },
+  {
+    area: 'Rides lifecycle',
+    anchors: [
+      'final/Program.cs:287 (create ride endpoint)',
+      'final/Program.cs:343 (complete ride endpoint)',
+      'final/Models/Ride.cs:5 (Ride model)',
+      'final/Repositories/RideRepository.cs:1 (ride persistence)',
+    ],
+  },
+  {
+    area: 'Telemetry and diagnostics',
+    anchors: [
+      'final/Protos/telemetry.proto:1 (proto syntax)',
+      'final/Protos/telemetry.proto:4 (gRPC service)',
+      'final/Protos/telemetry.proto:5 (Send RPC)',
+      'final/Grpc/TelemetryGrpcService.cs:20 (Send implementation)',
+      'final/Program.cs:392 (telemetry POST endpoint)',
+      'final/Program.cs:399 (telemetry latest endpoint)',
+      'final/Services/TelemetryService.cs:33 (QueryTimeout)',
+      'final/Services/TelemetryService.cs:77 (demo fallback)',
+      'final/Program.cs:415 (diagnostics POST endpoint)',
+      'final/Services/SensorDiagnosticsService.cs:47 (diagnostics timeout)',
+    ],
+  },
+  {
+    area: 'Invoices and email',
+    anchors: [
+      'final/Program.cs:372 (GenerateInvoicePdf usage)',
+      'final/Program.cs:378 (SendInvoiceAsync usage)',
+      'final/Services/PdfService.cs:17 (GenerateInvoicePdf)',
+      'final/Services/InvoiceEmailService.cs:21 (SendInvoiceAsync)',
+      'final/Services/InvoiceEmailService.cs:66 (SendViaSmtpAsync)',
+    ],
+  },
+  {
+    area: 'Database schema and migrations',
+    anchors: [
+      'final/Data/NovaDriveContext.cs:18 (OnModelCreating)',
+      'final/Migrations/20260216120000_InitialCreate.cs:8 (initial migration)',
+      'final/Migrations/NovaDriveContextModelSnapshot.cs:1 (schema snapshot)',
+      'final/appsettings.Development.json:1 (dev sqlite settings)',
+    ],
+  },
+  {
+    area: 'Frontend app modes',
+    anchors: [
+      'website tests/src/App.jsx:4 (API_BASE)',
+      'website tests/src/App.jsx:518 (appView state)',
+      'website tests/src/App.jsx:611 (study view section)',
+      'website tests/src/App.jsx:667 (qa view section)',
+      'website tests/src/control/ControlApp.jsx:14 (control app root)',
+      'website tests/src/control/TelemetryViewer.jsx:4 (telemetry view)',
+    ],
+  },
+  {
+    area: 'Infra and serving',
+    anchors: [
+      'docker-compose.yml:1 (service topology)',
+      'docker-compose.yml:84 (mailpit healthcheck)',
+      'website tests/nginx.conf:1 (frontend route/proxy behavior)',
+      'Launch Nova Drive.cmd:1 (windows launcher)',
+    ],
+  },
+];
+
 const StatusBadge = ({ status }) => {
   if (!status) {
     return <span className="status-badge error">offline</span>;
@@ -627,6 +723,18 @@ function App() {
                     </ol>
                   </section>
                 )}
+
+                <section className="detail-block code-block">
+                  <h3>Exact Edit Map (file:line)</h3>
+                  {EXACT_EDIT_MAP.map((group) => (
+                    <div key={group.area} style={{ marginBottom: '12px' }}>
+                      <p style={{ margin: '0 0 6px 0', fontWeight: 700 }}>{group.area}</p>
+                      <ol className="steps-list" style={{ marginTop: 0 }}>
+                        {group.anchors.map((anchor) => <li key={anchor}>{anchor}</li>)}
+                      </ol>
+                    </div>
+                  ))}
+                </section>
               </div>
             </article>
           </div>
